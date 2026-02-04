@@ -9,6 +9,11 @@ on:
         type: string
         required: true
         description: version without leading `v`
+      pre-release:
+        type: boolean
+        required: false
+        default: false
+        description: Publish as pre-release (not tagged as latest)
 
 defaults:
   run:
@@ -65,12 +70,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Publish to Microsoft Marketplace
-        run: pnpm exec vsce publish --packagePath oxc_language_server.vsix
+        run: pnpm exec vsce publish ${{ inputs.pre-release && '--pre-release' || '' }} --packagePath oxc_language_server.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PERSONAL_ACCESS_TOKEN }}
 
       - name: Publish to Open VSX Registry
-        run: pnpm exec ovsx publish --packagePath oxc_language_server.vsix
+        run: pnpm exec ovsx publish ${{ inputs.pre-release && '--pre-release' || '' }} --packagePath oxc_language_server.vsix
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
 
@@ -78,6 +83,7 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           draft: false
+          prerelease: ${{ inputs.pre-release }}
           name: v${{ inputs.version }}
           tag_name: v${{ inputs.version }}
           target_commitish: ${{ github.sha }}
