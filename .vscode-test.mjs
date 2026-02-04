@@ -12,6 +12,10 @@ const multiRootWorkspaceConfig = {
 };
 writeFileSync(multiRootWorkspaceFile, JSON.stringify(multiRootWorkspaceConfig, null, 2));
 
+// Use binaries from node_modules
+const oxlintBin = path.resolve(import.meta.dirname, "node_modules/.bin/oxlint");
+const oxfmtBin = path.resolve(import.meta.dirname, "node_modules/.bin/oxfmt");
+
 const baseTest = {
   files: "out_test/integration/**/*.spec.js",
   workspaceFolder: "./test_workspace",
@@ -42,7 +46,7 @@ const allTestSuites = new Map([
       ...baseTest,
       env: {
         SINGLE_FOLDER_WORKSPACE: "true",
-        SERVER_PATH_DEV: path.resolve(import.meta.dirname, `../../apps/oxlint/dist/cli.js`),
+        SERVER_PATH_DEV: oxlintBin,
         SKIP_FORMATTER_TEST: "true",
       },
     },
@@ -54,7 +58,7 @@ const allTestSuites = new Map([
       workspaceFolder: multiRootWorkspaceFile,
       env: {
         MULTI_FOLDER_WORKSPACE: "true",
-        SERVER_PATH_DEV: path.resolve(import.meta.dirname, `../../apps/oxlint/dist/cli.js`),
+        SERVER_PATH_DEV: oxlintBin,
         SKIP_FORMATTER_TEST: "true",
       },
     },
@@ -68,7 +72,7 @@ const allTestSuites = new Map([
       env: {
         SINGLE_FOLDER_WORKSPACE: "true",
         OXLINT_JS_PLUGIN: "true",
-        SERVER_PATH_DEV: path.resolve(import.meta.dirname, `../../apps/oxlint/dist/cli.js`),
+        SERVER_PATH_DEV: oxlintBin,
         SKIP_FORMATTER_TEST: "true",
       },
     },
@@ -79,7 +83,7 @@ const allTestSuites = new Map([
       ...baseTest,
       env: {
         SINGLE_FOLDER_WORKSPACE: "true",
-        SERVER_PATH_DEV: path.resolve(import.meta.dirname, `../../apps/oxfmt/dist/cli.js`),
+        SERVER_PATH_DEV: oxfmtBin,
         SKIP_LINTER_TEST: "true",
       },
     },
