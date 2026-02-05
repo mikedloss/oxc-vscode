@@ -15,13 +15,12 @@
     "oxlint"
   ],
   "bugs": {
-    "url": "https://github.com/oxc-project/oxc/issues"
+    "url": "https://github.com/oxc-project/oxc-vscode/issues"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oxc-project/oxc.git",
-    "directory": "editors/vscode"
+    "url": "git+https://github.com/oxc-project/oxc-vscode.git"
   },
   "sponsor": {
     "url": "https://github.com/sponsors/boshen"

@@ -7,22 +7,20 @@ This task generates the Configuration section of the VSCode extension README.md 
 ### Update the README
 
 ```bash
-cargo run -p vscode_docs update
-# or
-just vscode-docs
+cargo run --manifest-path vscode_docs/Cargo.toml -- update
 ```
 
 ## CI Verification
 
 The CI workflow verifies the README is up-to-date by:
 
-1. Running `cargo run -p vscode_docs update` to regenerate the configuration
+1. Running `cargo run --manifest-path vscode_docs/Cargo.toml -- update` to regenerate the configuration
 2. Running `pnpm fmt` to format the entire project
 3. Running `git diff --exit-code` to ensure no changes were made
 
 ## How it works
 
-1. Reads the `editors/vscode/package.json` file
+1. Reads the `package.json` file
 2. Extracts the configuration properties from `contributes.configuration.properties`
 3. Separates them into Window and Workspace configurations based on the `scope` property
 4. Generates markdown tables for each configuration type

@@ -54,12 +54,12 @@ fn update_readme() {
 
 fn get_readme_path() -> PathBuf {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    PathBuf::from(manifest_dir).join("../../editors/vscode/README.md")
+    PathBuf::from(manifest_dir).join("../README.md")
 }
 
 fn get_package_json_path() -> PathBuf {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    PathBuf::from(manifest_dir).join("../../editors/vscode/package.json")
+    PathBuf::from(manifest_dir).join("../package.json")
 }
 
 fn replace_generated_section(readme: &str, generated: &str) -> String {
