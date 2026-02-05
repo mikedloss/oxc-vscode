@@ -9,11 +9,6 @@ on:
         type: string
         required: true
         description: Version to release (e.g., 1.44.0 or 1.44.0-alpha.1)
-      pre-release:
-        type: boolean
-        required: false
-        default: false
-        description: Publish as pre-release (not tagged as latest)
 
 jobs:
   prepare:
@@ -32,14 +27,11 @@ jobs:
         with:
           token: ${{ secrets.OXC_BOT_PAT }}
           commit-message: "release: v${{ inputs.version }}"
-          title: "release: v${{ inputs.version }}${{ inputs.pre-release && ' (pre-release)' || '' }}"
+          title: "release: v${{ inputs.version }}"
           branch: release/v${{ inputs.version }}
           base: main
           body: |
             ## Release v${{ inputs.version }}
 
-            ${{ inputs.pre-release && '⚠️ This is a **pre-release** version.' || '' }}
-
             Merging this PR will trigger the release workflow.
           assignees: Boshen
-          labels: ${{ inputs.pre-release && 'pre-release' || '' }}
