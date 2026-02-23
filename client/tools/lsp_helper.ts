@@ -8,6 +8,8 @@ export function runExecutable(
   nodePath?: string,
   tsgolintPath?: string,
 ): Executable {
+  if (!nodePath) nodePath = undefined;
+
   const serverEnv: Record<string, string> = {
     ...process.env,
     RUST_LOG: process.env.RUST_LOG || "info", // Keep for backward compatibility for a while
@@ -21,6 +23,8 @@ export function runExecutable(
   }
   // when the binary path ends with `oxlint/bin/oxlint` or a common js extension, we should run it with `node`
   // the path is defined in `ConfigService.searchNodeModulesBin`
+  // Probably it would be better to read the shebang for unknown extensions, and run with `node` if the shebang contains `node`,
+  // but for now we can just check for common node extensions and the known path for `oxlint`
   const isNode =
     binaryPath.endsWith(".js") ||
     binaryPath.endsWith(".cjs") ||
@@ -31,7 +35,7 @@ export function runExecutable(
 
   return isNode
     ? {
-        command: "node",
+        command: nodePath ?? "node",
         args: [binaryPath, "--lsp"],
         options: {
           env: serverEnv,

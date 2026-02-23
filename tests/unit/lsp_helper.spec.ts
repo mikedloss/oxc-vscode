@@ -72,4 +72,12 @@ suite("runExecutable", () => {
 
     strictEqual(result.command, '"C:\\Path With Spaces\\oxc-language-server"');
   });
+
+  test("should use the provided node path for Node.js executables", () => {
+    const result = runExecutable("/path/to/server.js", tool, "/custom/node/path");
+
+    strictEqual(result.command, "/custom/node/path");
+    strictEqual(result.args?.[0], "/path/to/server.js");
+    strictEqual(result.args?.[1], "--lsp");
+  });
 });
