@@ -1,16 +1,33 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import * as path from "node:path";
 import { Uri, workspace } from "vscode";
 import { validateSafeBinaryPath } from "./PathValidator";
 
-function replaceTargetFromMainToBin(resolvedPath: string, binaryName: string): string {
-  // we want to target the binary instead of the main index file
-  // Improvement: search inside package.json "bin" and `main` field for more reliability
-  return resolvedPath.replace(
-    `${binaryName}${path.sep}dist${path.sep}index.js`,
-    `${binaryName}${path.sep}bin${path.sep}${binaryName}`,
-  );
+/** @internal only used for testing */
+export function replaceTargetFromMainToBin(resolvedPath: string, binaryName: string): string {
+  // Walk up from the resolved main file to find the nearest package.json
+  // and use its "bin" entry to get the actual binary path
+  let dir = path.dirname(resolvedPath);
+  while (dir !== path.dirname(dir)) {
+    let rawContent: string;
+    try {
+      rawContent = readFileSync(path.join(dir, "package.json"), "utf8");
+    } catch {
+      dir = path.dirname(dir);
+      continue;
+    }
+    // Found the package.json — stop walking up here
+    const packageJson: { bin?: string | Record<string, string> } = JSON.parse(rawContent);
+    const binEntry =
+      typeof packageJson.bin === "string" ? packageJson.bin : packageJson.bin?.[binaryName];
+    if (!binEntry) {
+      throw new Error(`No bin entry for "${binaryName}" found in package.json`);
+    }
+    return path.resolve(dir, binEntry);
+  }
+  throw new Error(`Could not find package.json for "${binaryName}"`);
 }
 
 async function searchNodeModulesDefaultBinPath(
