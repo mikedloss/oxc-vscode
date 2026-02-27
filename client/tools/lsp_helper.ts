@@ -1,6 +1,104 @@
 import * as path from "node:path";
+import { spawnSync } from "node:child_process";
 import { LogOutputChannel, window } from "vscode";
 import { Executable, MessageType, ShowMessageParams } from "vscode-languageclient/node";
+
+type NodeCommandResolution = {
+  command: string;
+  useElectronAsNode: boolean;
+};
+
+type SpawnSync = typeof spawnSync;
+
+const NODE_RESOLUTION_TIMEOUT_MS = 5_000;
+
+let cachedNodeCommand: NodeCommandResolution | undefined;
+let spawnSyncImpl: SpawnSync = spawnSync;
+
+function isNodeAvailableInCurrentPath(): boolean {
+  try {
+    const result = spawnSyncImpl("node", ["--version"], {
+      encoding: "utf8",
+      timeout: NODE_RESOLUTION_TIMEOUT_MS,
+    });
+    return !result.error && result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function searchNodeInLoginShell(): string | undefined {
+  if (process.platform === "win32") {
+    return undefined;
+  }
+
+  const shell = process.env.SHELL;
+  if (!shell) {
+    return undefined;
+  }
+
+  try {
+    const result = spawnSyncImpl(shell, ["-ilc", 'node -p "process.execPath"'], {
+      encoding: "utf8",
+      timeout: NODE_RESOLUTION_TIMEOUT_MS,
+    });
+    if (result.error || result.status !== 0) {
+      return undefined;
+    }
+
+    const lines = result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    // Startup scripts may print extra lines; the last absolute path is usually the real value.
+    const candidate = [...lines].reverse().find((line) => path.isAbsolute(line));
+    return candidate;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveNodeCommand(nodePath?: string): NodeCommandResolution {
+  if (nodePath) {
+    return { command: nodePath, useElectronAsNode: false };
+  }
+
+  if (cachedNodeCommand) {
+    return cachedNodeCommand;
+  }
+
+  if (isNodeAvailableInCurrentPath()) {
+    cachedNodeCommand = { command: "node", useElectronAsNode: false };
+    return cachedNodeCommand;
+  }
+
+  const nodeFromLoginShell = searchNodeInLoginShell();
+  if (nodeFromLoginShell) {
+    cachedNodeCommand = { command: nodeFromLoginShell, useElectronAsNode: false };
+    return cachedNodeCommand;
+  }
+
+  cachedNodeCommand = {
+    command: process.execPath || "node",
+    // When no external Node.js is available, execute scripts using the extension host runtime.
+    useElectronAsNode: Boolean(process.execPath),
+  };
+  return cachedNodeCommand;
+}
+
+export const __test__ = {
+  reset(): void {
+    cachedNodeCommand = undefined;
+    spawnSyncImpl = spawnSync;
+  },
+  setSpawnSyncForTests(fn?: SpawnSync): void {
+    spawnSyncImpl = fn ?? spawnSync;
+  },
+};
+
+export function getResolvedNodeCommand(nodePath?: string): string {
+  return resolveNodeCommand(nodePath).command;
+}
 
 export function runExecutable(
   binaryPath: string,
@@ -8,17 +106,12 @@ export function runExecutable(
   nodePath?: string,
   tsgolintPath?: string,
 ): Executable {
-  if (!nodePath) nodePath = undefined;
-
   const serverEnv: Record<string, string> = {
     ...process.env,
     RUST_LOG: process.env.RUST_LOG || "info", // Keep for backward compatibility for a while
     OXC_LOG: process.env.OXC_LOG || "info",
     NO_COLOR: "1",
   };
-  if (nodePath) {
-    serverEnv.PATH = `${nodePath}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`;
-  }
   if (tsgolintPath) {
     serverEnv.OXLINT_TSGOLINT_PATH = tsgolintPath;
   }
@@ -31,12 +124,22 @@ export function runExecutable(
     binaryPath.endsWith(".cjs") ||
     binaryPath.endsWith(".mjs") ||
     binaryPath.endsWith(`${nodeBinName}${path.sep}bin${path.sep}${nodeBinName}`);
+  const nodeResolution = resolveNodeCommand(nodePath);
+  const nodeCommand = nodeResolution.command;
+
+  if (path.isAbsolute(nodeCommand)) {
+    const nodeDir = path.dirname(nodeCommand);
+    serverEnv.PATH = `${nodeDir}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`;
+  }
+  if (nodeResolution.useElectronAsNode) {
+    serverEnv.ELECTRON_RUN_AS_NODE = "1";
+  }
 
   const isWindows = process.platform === "win32";
 
   return isNode
     ? {
-        command: nodePath ?? "node",
+        command: nodeCommand,
         args: [binaryPath, "--lsp"],
         options: {
           env: serverEnv,
