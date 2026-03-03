@@ -1,5 +1,4 @@
 import * as path from "node:path";
-import { spawnSync } from "node:child_process";
 import { LogOutputChannel, window } from "vscode";
 import { Executable, MessageType, ShowMessageParams } from "vscode-languageclient/node";
 
@@ -8,93 +7,20 @@ type NodeCommandResolution = {
   useElectronAsNode: boolean;
 };
 
-type SpawnSync = typeof spawnSync;
-
-const NODE_RESOLUTION_TIMEOUT_MS = 5_000;
-
-let cachedNodeCommand: NodeCommandResolution | undefined;
-let spawnSyncImpl: SpawnSync = spawnSync;
-
-function isNodeAvailableInCurrentPath(): boolean {
-  try {
-    const result = spawnSyncImpl("node", ["--version"], {
-      encoding: "utf8",
-      timeout: NODE_RESOLUTION_TIMEOUT_MS,
-    });
-    return !result.error && result.status === 0;
-  } catch {
-    return false;
-  }
-}
-
-function searchNodeInLoginShell(): string | undefined {
-  if (process.platform === "win32") {
-    return undefined;
-  }
-
-  const shell = process.env.SHELL;
-  if (!shell) {
-    return undefined;
-  }
-
-  try {
-    const result = spawnSyncImpl(shell, ["-ilc", 'node -p "process.execPath"'], {
-      encoding: "utf8",
-      timeout: NODE_RESOLUTION_TIMEOUT_MS,
-    });
-    if (result.error || result.status !== 0) {
-      return undefined;
-    }
-
-    const lines = result.stdout
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    // Startup scripts may print extra lines; the last absolute path is usually the real value.
-    const candidate = [...lines].reverse().find((line) => path.isAbsolute(line));
-    return candidate;
-  } catch {
-    return undefined;
-  }
-}
-
 function resolveNodeCommand(nodePath?: string): NodeCommandResolution {
   if (nodePath) {
     return { command: nodePath, useElectronAsNode: false };
   }
 
-  if (cachedNodeCommand) {
-    return cachedNodeCommand;
+  if (process.platform === "win32") {
+    return { command: "node", useElectronAsNode: false };
   }
 
-  if (isNodeAvailableInCurrentPath()) {
-    cachedNodeCommand = { command: "node", useElectronAsNode: false };
-    return cachedNodeCommand;
-  }
-
-  const nodeFromLoginShell = searchNodeInLoginShell();
-  if (nodeFromLoginShell) {
-    cachedNodeCommand = { command: nodeFromLoginShell, useElectronAsNode: false };
-    return cachedNodeCommand;
-  }
-
-  cachedNodeCommand = {
+  return {
     command: process.execPath || "node",
-    // When no external Node.js is available, execute scripts using the extension host runtime.
     useElectronAsNode: Boolean(process.execPath),
   };
-  return cachedNodeCommand;
 }
-
-export const __test__ = {
-  reset(): void {
-    cachedNodeCommand = undefined;
-    spawnSyncImpl = spawnSync;
-  },
-  setSpawnSyncForTests(fn?: SpawnSync): void {
-    spawnSyncImpl = fn ?? spawnSync;
-  },
-};
 
 export function getResolvedNodeCommand(nodePath?: string): string {
   return resolveNodeCommand(nodePath).command;
@@ -133,6 +59,8 @@ export function runExecutable(
   }
   if (nodeResolution.useElectronAsNode) {
     serverEnv.ELECTRON_RUN_AS_NODE = "1";
+  } else {
+    delete serverEnv.ELECTRON_RUN_AS_NODE;
   }
 
   const isWindows = process.platform === "win32";

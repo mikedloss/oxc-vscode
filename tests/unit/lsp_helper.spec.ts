@@ -1,5 +1,5 @@
 import { strictEqual } from "assert";
-import { __test__, runExecutable } from "../../client/tools/lsp_helper";
+import { runExecutable } from "../../client/tools/lsp_helper";
 
 suite("runExecutable", () => {
   const originalPlatform = process.platform;
@@ -9,13 +9,11 @@ suite("runExecutable", () => {
   teardown(() => {
     Object.defineProperty(process, "platform", { value: originalPlatform });
     process.env = originalEnv;
-    __test__.reset();
   });
 
   test("should create Node.js executable for .js files", () => {
     const result = runExecutable("/path/to/server.js", tool);
 
-    strictEqual(result.command, "node");
     strictEqual(result.args?.[0], "/path/to/server.js");
     strictEqual(result.args?.[1], "--lsp");
   });
@@ -23,7 +21,6 @@ suite("runExecutable", () => {
   test("should create Node.js executable for .cjs files", () => {
     const result = runExecutable("/path/to/server.cjs", tool);
 
-    strictEqual(result.command, "node");
     strictEqual(result.args?.[0], "/path/to/server.cjs");
     strictEqual(result.args?.[1], "--lsp");
   });
@@ -31,7 +28,6 @@ suite("runExecutable", () => {
   test("should create Node.js executable for .mjs files", () => {
     const result = runExecutable("/path/to/server.mjs", tool);
 
-    strictEqual(result.command, "node");
     strictEqual(result.args?.[0], "/path/to/server.mjs");
     strictEqual(result.args?.[1], "--lsp");
   });
@@ -61,8 +57,9 @@ suite("runExecutable", () => {
     Object.defineProperty(process, "platform", { value: "linux" });
     process.env.PATH = "/usr/bin:/bin";
 
-    const result = runExecutable("/path/to/server", tool, "/custom/node/bin/node");
+    const result = runExecutable("/path/to/server.js", tool, "/custom/node/bin/node");
 
+    strictEqual(result.command, "/custom/node/bin/node");
     strictEqual(result.options?.env?.PATH, "/custom/node/bin:/usr/bin:/bin");
   });
 
@@ -82,41 +79,30 @@ suite("runExecutable", () => {
     strictEqual(result.args?.[1], "--lsp");
   });
 
-  test("should fall back to searching node in login shell when not in PATH", () => {
+  test("should use process.execPath with ELECTRON_RUN_AS_NODE on non-Windows", () => {
     Object.defineProperty(process, "platform", { value: "linux" });
-    process.env.PATH = "/usr/bin:/bin";
-    process.env.SHELL = "/bin/zsh";
-
-    __test__.setSpawnSyncForTests(((command: string, args: readonly string[], options: any) => {
-      if (command === "node") {
-        strictEqual(options?.timeout, 5000);
-        return { status: 1, stdout: "", stderr: "", error: undefined } as any;
-      }
-      if (command === "/bin/zsh") {
-        strictEqual(args[0], "-ilc");
-        strictEqual(options?.timeout, 5000);
-        return { status: 0, stdout: "noise\n/opt/homebrew/bin/node\n", stderr: "", error: undefined } as any;
-      }
-      return { status: 1, stdout: "", stderr: "", error: undefined } as any;
-    }) as any);
 
     const result = runExecutable("/path/to/server.js", tool);
-    strictEqual(result.command, "/opt/homebrew/bin/node");
-    strictEqual(result.options?.env?.PATH, "/opt/homebrew/bin:/usr/bin:/bin");
-  });
 
-  test("should set ELECTRON_RUN_AS_NODE when falling back to process.execPath", () => {
-    Object.defineProperty(process, "platform", { value: "linux" });
-    process.env.PATH = "/usr/bin:/bin";
-    process.env.SHELL = "/bin/zsh";
-
-    __test__.setSpawnSyncForTests((() => {
-      // Make both PATH lookup and login-shell lookup fail.
-      return { status: 1, stdout: "", stderr: "", error: undefined } as any;
-    }) as any);
-
-    const result = runExecutable("/path/to/server.js", tool);
     strictEqual(result.command, process.execPath);
     strictEqual(result.options?.env?.ELECTRON_RUN_AS_NODE, "1");
+  });
+
+  test("should use 'node' without ELECTRON_RUN_AS_NODE on Windows", () => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+
+    const result = runExecutable("/path/to/server.js", tool);
+
+    strictEqual(result.command, "node");
+    strictEqual(result.options?.env?.ELECTRON_RUN_AS_NODE, undefined);
+  });
+
+  test("should not set ELECTRON_RUN_AS_NODE when explicit nodePath is provided", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = runExecutable("/path/to/server.js", tool, "/usr/local/bin/bun");
+
+    strictEqual(result.command, "/usr/local/bin/bun");
+    strictEqual(result.options?.env?.ELECTRON_RUN_AS_NODE, undefined);
   });
 });
